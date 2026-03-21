@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Théâtres Paris</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root {
+      --bg:      #0e0507;
+      --bg2:     #180a0d;
+      --card:    #1e0c10;
+      --card2:   #281018;
+      --gold:    #c9a84c;
+      --gold-lt: #e0c870;
+      --cream:   #f0e2cc;
+      --muted:   #9a7860;
+      --velvet:  #7a1428;
+      --nav:     #0a0305;
+      --sep:     rgba(201,168,76,0.13);
+      --r:       13px;
+      --safe-t:  env(safe-area-inset-top, 0px);
+      --safe-b:  env(safe-area-inset-bottom, 0px);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: 'Source Sans 3', sans-serif;
+      background: var(--bg);
+      color: var(--cream);
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+
+    /* ── APP SHELL ── */
+    #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+
+    /* ── TOPBAR ── */
+    #topbar {
+      padding: calc(var(--safe-t) + 10px) 16px 10px;
+      background: var(--nav);
+      border-bottom: 1px solid var(--sep);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    #topbar h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 20px; letter-spacing: 0.03em;
+      color: var(--gold);
+    }
+    #topbar h1 span { color: var(--cream); font-weight: 400; }
+    .top-actions { display: flex; gap: 8px; align-items: center; }
+    .lang-btn {
+      background: none; border: 1px solid var(--sep);
+      color: var(--muted); font-size: 12px; font-weight: 600;
+      padding: 4px 8px; border-radius: 6px; cursor: pointer;
+      letter-spacing: 0.06em; font-family: 'Source Sans 3', sans-serif;
+      transition: all 0.2s;
+    }
+    .lang-btn.active { color: var(--gold); border-color: var(--gold); }
+    .icon-btn {
+      width: 32px; height: 32px;
+      background: none; border: 1px solid var(--sep);
+      border-radius: 8px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 16px; transition: all 0.2s;
+    }
+    .icon-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* ── SEARCHBAR ── */
+    #searchbar {
+      padding: 10px 16px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--sep);
+      flex-shrink: 0;
+    }
+    #search-input {
+      width: 100%; background: var(--card);
+      border: 1px solid var(--sep); border-radius: 10px;
+      padding: 9px 16px 9px 36px;
+      color: var(--cream); font-size: 14px;
+      font-family: 'Source Sans 3', sans-serif; outline: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%239a7860' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.656a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: 12px center;
+    }
+    #search-input::placeholder { color: var(--muted); }
+
+    /* ── FILTER CHIPS ── */
+    #filters {
+      display: flex; gap: 8px; padding: 8px 16px;
+      overflow-x: auto; flex-shrink: 0;
+      background: var(--bg2); border-bottom: 1px solid var(--sep);
+      scrollbar-width: none;
+    }
+    #filters::-webkit-scrollbar { display: none; }
+    .chip {
+      flex-shrink: 0; padding: 5px 12px;
+      border: 1px solid var(--sep); border-radius: 20px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; color: var(--muted);
+      white-space: nowrap; letter-spacing: 0.03em;
+    }
+    .chip.active { background: var(--gold); border-color: var(--gold); color: #0e0507; }
+
+    /* ── COUNT ── */
+    #count-badge { font-size: 12px; color: var(--muted); padding: 8px 14px 4px; flex-shrink: 0; }
+
+    /* ── CONTENT ── */
+    #content { flex: 1; overflow: hidden; position: relative; }
+
+    /* ── LIST VIEW ── */
+    #list-view { height: 100%; overflow-y: auto; padding: 10px 14px 20px; scrollbar-width: none; }
+    #list-view::-webkit-scrollbar { display: none; }
+
+    .theatre-card {
+      background: var(--card); border: 1px solid var(--sep);
+      border-radius: var(--r); margin-bottom: 10px;
+      overflow: hidden; cursor: pointer;
+      transition: all 0.2s; display: flex; height: 96px;
+    }
+    .theatre-card:active { transform: scale(0.98); }
+    .card-thumb {
+      width: 96px; flex-shrink: 0;
+      background: var(--card2); overflow: hidden;
+    }
+    .card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .card-no-img { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 32px; background: var(--card2); }
+    .card-body {
+      padding: 10px 12px; flex: 1; overflow: hidden;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .card-name {
+      font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 600;
+      color: var(--cream); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .card-subtitle { font-size: 11px; color: var(--gold); margin-top: 2px; font-style: italic; }
+    .card-bottom { display: flex; align-items: center; justify-content: space-between; }
+    .card-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+    .tag {
+      font-size: 10px; font-weight: 600;
+      padding: 2px 7px; border-radius: 10px; letter-spacing: 0.04em;
+    }
+    .tag-opera    { background: rgba(130,20,40,0.5);  color: #e88898; }
+    .tag-ballet   { background: rgba(80,45,120,0.5);  color: #c0a0f0; }
+    .tag-classique{ background: rgba(40,70,120,0.5);  color: #88b0e0; }
+    .tag-contem   { background: rgba(30,90,70,0.5);   color: #70d0a0; }
+    .tag-comedie  { background: rgba(120,90,15,0.5);  color: #e8c050; }
+    .tag-danse    { background: rgba(100,35,95,0.5);  color: #e098d5; }
+    .tag-boulevard{ background: rgba(80,55,20,0.5);   color: #d0a060; }
+    .tag-musical  { background: rgba(20,85,90,0.5);   color: #68ccd0; }
+    .tag-concert  { background: rgba(55,55,55,0.5);   color: #b8b8b8; }
+    .tag-default  { background: rgba(90,70,30,0.5);   color: #d0b070; }
+    .fav-heart {
+      background: none; border: none; color: var(--muted);
+      font-size: 18px; cursor: pointer; padding: 2px;
+      transition: color 0.2s;
+    }
+    .fav-heart.active { color: var(--gold); }
+
+    /* ── MAP ── */
+    #map-view { height: 100%; }
+    #map { width: 100%; height: 100%; }
+    .leaflet-popup-content-wrapper {
+      background: var(--card2) !important; border: 1px solid var(--sep) !important;
+      border-radius: 10px !important; color: var(--cream) !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;
+    }
+    .leaflet-popup-tip { background: var(--card2) !important; }
+    .leaflet-popup-content { margin: 10px 12px !important; }
+    .popup-title { font-family: 'Playfair Display', serif; font-size: 14px; color: var(--gold); font-weight: 600; }
+    .popup-sub { font-size: 12px; color: var(--muted); margin-top: 2px; font-style: italic; }
+    .popup-hint { font-size: 11px; color: var(--gold); margin-top: 6px; opacity: 0.7; }
+    .popup-btn {
+      margin-top: 8px; width: 100%; padding: 6px;
+      background: var(--gold); color: #0e0507;
+      border: none; border-radius: 6px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      font-family: 'Source Sans 3', sans-serif;
+    }
+
+    /* ── FAVS ── */
+    #favs-view { height: 100%; overflow-y: auto; padding: 10px 14px 20px; scrollbar-width: none; }
+    #favs-view::-webkit-scrollbar { display: none; }
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+    .empty-state .emoji { font-size: 44px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; line-height: 1.6; }
+
+    /* ── BOTTOM NAV ── */
+    #bottomnav {
+      display: flex; background: var(--nav);
+      border-top: 1px solid var(--sep);
+      padding-bottom: var(--safe-b); flex-shrink: 0;
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 10px 0; cursor: pointer;
+      background: none; border: none;
+      color: var(--muted); font-size: 10px; font-weight: 600;
+      letter-spacing: 0.05em; transition: color 0.2s;
+      gap: 3px; font-family: 'Source Sans 3', sans-serif;
+    }
+    .nav-item.active { color: var(--gold); }
+    .nav-icon { font-size: 20px; line-height: 1; }
+
+    /* ── DETAIL PANEL ── */
+    #detail-panel {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--bg);
+      transform: translateX(100%);
+      transition: transform 0.35s cubic-bezier(0.32,0.72,0,1);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    #detail-panel.open { transform: translateX(0); }
+
+    .detail-hero {
+      position: relative; height: 240px; flex-shrink: 0;
+      background: var(--card); overflow: hidden;
+    }
+    .detail-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .detail-hero-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, rgba(14,5,7,0.25) 0%, rgba(14,5,7,0.88) 100%);
+    }
+    .detail-hero-bottom {
+      position: absolute; bottom: 0; left: 0; right: 0; padding: 16px;
+    }
+    .detail-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 24px; font-weight: 700; color: var(--cream); line-height: 1.2;
+    }
+    .detail-subtitle-hero {
+      font-size: 12px; color: var(--gold); margin-top: 3px;
+      letter-spacing: 0.08em; text-transform: uppercase; font-style: italic;
+    }
+    .back-btn {
+      position: absolute; top: calc(var(--safe-t) + 12px); left: 12px;
+      width: 36px; height: 36px;
+      background: rgba(0,0,0,0.65); border: 1px solid rgba(201,168,76,0.35);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--cream); font-size: 20px; z-index: 10;
+      font-family: monospace; line-height: 1;
+    }
+    .detail-fav-btn {
+      position: absolute; top: calc(var(--safe-t) + 12px); right: 12px;
+      width: 36px; height: 36px;
+      background: rgba(0,0,0,0.65); border: 1px solid rgba(201,168,76,0.35);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--muted); font-size: 18px; z-index: 10;
+      transition: color 0.2s;
+    }
+    .detail-fav-btn.active { color: var(--gold); }
+
+    .detail-scroll { flex: 1; overflow-y: auto; padding: 14px 16px 30px; scrollbar-width: none; }
+    .detail-scroll::-webkit-scrollbar { display: none; }
+
+    .detail-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+
+    .stats-row { display: flex; gap: 10px; margin-bottom: 18px; }
+    .stat-box {
+      flex: 1; background: var(--card);
+      border: 1px solid var(--sep); border-radius: 10px; padding: 10px 8px; text-align: center;
+    }
+    .stat-val { font-family: 'Playfair Display', serif; font-size: 17px; color: var(--gold); }
+    .stat-lbl { font-size: 10px; color: var(--muted); margin-top: 3px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    .detail-section { margin-bottom: 20px; }
+    .detail-section h3 {
+      font-family: 'Playfair Display', serif; font-size: 13px;
+      color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase;
+      margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--sep);
+    }
+    .detail-description { font-size: 14px; line-height: 1.75; color: rgba(240,226,204,0.88); }
+
+    .detail-info-row {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 0; border-bottom: 1px solid var(--sep); font-size: 13px;
+    }
+    .detail-info-row:last-child { border-bottom: none; }
+    .info-icon { font-size: 14px; flex-shrink: 0; width: 20px; text-align: center; margin-top: 1px; }
+    .info-label { color: var(--muted); flex-shrink: 0; min-width: 68px; }
+    .info-val { color: var(--cream); flex: 1; line-height: 1.5; }
+    .info-val a { color: var(--gold); text-decoration: none; word-break: break-all; }
+
+    /* ── SHOWS ── */
+    .shows-scroll { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 6px; }
+    .shows-scroll::-webkit-scrollbar { display: none; }
+    .show-card {
+      flex-shrink: 0; width: 136px;
+      background: var(--card2); border: 1px solid var(--sep); border-radius: 10px; overflow: hidden;
+    }
+    .show-img-wrap { width: 100%; height: 90px; background: var(--card); overflow: hidden; }
+    .show-img-wrap img { width: 100%; height: 100%; object-fit: cover; }
+    .show-no-img { width: 100%; height: 90px; background: var(--card); display: flex; align-items: center; justify-content: center; font-size: 26px; }
+    .show-body { padding: 8px 8px 10px; }
+    .show-title { font-family: 'Playfair Display', serif; font-size: 12px; font-weight: 600; color: var(--cream); font-style: italic; }
+    .show-author { font-size: 11px; color: var(--gold); margin-top: 2px; }
+    .show-genre { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
+      background: var(--gold); color: #0e0507;
+      padding: 8px 18px; border-radius: 20px;
+      font-size: 13px; font-weight: 600;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s;
+      z-index: 300; white-space: nowrap;
+    }
+    #toast.show { opacity: 1; }
+
+    /* Separator line ornement */
+    .ornament { text-align: center; color: var(--gold); font-size: 14px; margin: 4px 0 12px; opacity: 0.5; letter-spacing: 8px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <h1>🎭 <span>Théâtres</span> Paris</h1>
+    <div class="top-actions">
+      <button class="lang-btn active" id="btn-fr" onclick="setLang('fr')">FR</button>
+      <button class="lang-btn" id="btn-en" onclick="setLang('en')">EN</button>
+      <button class="icon-btn" onclick="showInfo()" title="À propos">ⓘ</button>
+    </div>
+  </div>
+
+  <!-- SEARCH -->
+  <div id="searchbar">
+    <input id="search-input" type="search" placeholder="Rechercher un théâtre…"
+      oninput="filterList()" autocomplete="off" autocorrect="off" spellcheck="false">
+  </div>
+
+  <!-- FILTER CHIPS -->
+  <div id="filters">
+    <div class="chip active" data-filter="all"         onclick="setFilter('all')">Tous</div>
+    <div class="chip"        data-filter="opéra"       onclick="setFilter('opéra')">Opéra</div>
+    <div class="chip"        data-filter="ballet"      onclick="setFilter('ballet')">Ballet</div>
+    <div class="chip"        data-filter="classique"   onclick="setFilter('classique')">Classique</div>
+    <div class="chip"        data-filter="contemporain"onclick="setFilter('contemporain')">Contemporain</div>
+    <div class="chip"        data-filter="comédie"     onclick="setFilter('comédie')">Comédie</div>
+    <div class="chip"        data-filter="boulevard"   onclick="setFilter('boulevard')">Boulevard</div>
+    <div class="chip"        data-filter="musical"     onclick="setFilter('musical')">Musical</div>
+    <div class="chip"        data-filter="danse"       onclick="setFilter('danse')">Danse</div>
+    <div class="chip"        data-filter="concert"     onclick="setFilter('concert')">Concert</div>
+  </div>
+
+  <!-- COUNT -->
+  <div id="count-badge"></div>
+
+  <!-- CONTENT -->
+  <div id="content">
+    <div id="list-view"></div>
+    <div id="map-view"  style="display:none"><div id="map"></div></div>
+    <div id="favs-view" style="display:none"></div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div id="bottomnav">
+    <button class="nav-item active" data-tab="list" onclick="switchTab('list')">
+      <span class="nav-icon">☰</span>
+      <span class="nav-label" data-fr="Liste" data-en="List">Liste</span>
+    </button>
+    <button class="nav-item" data-tab="map" onclick="switchTab('map')">
+      <span class="nav-icon">🗺</span>
+      <span class="nav-label" data-fr="Carte" data-en="Map">Carte</span>
+    </button>
+    <button class="nav-item" data-tab="favs" onclick="switchTab('favs')">
+      <span class="nav-icon">★</span>
+      <span class="nav-label" data-fr="Favoris" data-en="Favorites">Favoris</span>
+    </button>
+  </div>
+</div>
+
+<!-- DETAIL PANEL -->
+<div id="detail-panel">
+  <div class="detail-hero">
+    <button class="back-btn" onclick="closeDetail()">‹</button>
+    <button class="detail-fav-btn" id="detail-fav-btn" onclick="toggleFavDetail()">☆</button>
+    <img id="detail-img" src="" alt="" onerror="this.style.display='none'">
+    <div class="detail-hero-overlay"></div>
+    <div class="detail-hero-bottom">
+      <div class="detail-name" id="detail-name"></div>
+      <div class="detail-subtitle-hero" id="detail-subtitle"></div>
+    </div>
+  </div>
+  <div class="detail-scroll">
+    <div class="detail-tags"  id="detail-tags"></div>
+    <div class="stats-row"    id="detail-stats"></div>
+    <div class="detail-section">
+      <h3 id="lbl-desc">Description</h3>
+      <div class="ornament">— ✦ —</div>
+      <p class="detail-description" id="detail-desc"></p>
+    </div>
+    <div class="detail-section">
+      <h3 id="lbl-infos">Informations pratiques</h3>
+      <div id="detail-infos"></div>
+    </div>
+    <div class="detail-section">
+      <h3 id="lbl-shows">Spectacles emblématiques</h3>
+      <div class="shows-scroll" id="detail-shows"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="capacitor.js" onerror=""></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// DATA — 18 théâtres parisiens
+// ═══════════════════════════════════════════════════════════
+const THEATRES = [
+  {
+    id:1,
+    name:     {fr:"Palais Garnier",      en:"Palais Garnier"},
+    subtitle: {fr:"Opéra de Paris",      en:"Paris Opera House"},
+    address:  "Place de l'Opéra, 75009 Paris",
+    arrdt:    "9e",
+    coords:   {lat:48.8720, lng:2.3317},
+    phone:    "+33 1 71 25 24 23",
+    website:  "https://www.operadeparis.fr",
+    hours:    {fr:"Visite : 10h–17h (hors représentations)", en:"Visit: 10am–5pm (outside performances)"},
+    price:    {fr:"14 € (visite) · Spectacles : 10–230 €", en:"€14 (visit) · Performances: €10–230"},
+    founded:  1875,
+    capacity: 1979,
+    types:    {fr:["Opéra","Ballet","Patrimoine"],  en:["Opera","Ballet","Heritage"]},
+    description: {
+      fr: "Chef-d'œuvre de Charles Garnier inauguré en 1875, le Palais Garnier est l'un des plus fastueux théâtres du monde. Son grand escalier de marbre, ses loges dorées, son lustre de 8 tonnes et le plafond peint par Marc Chagall en 1964 en font un lieu de légende. Siège historique de l'Opéra de Paris et du Ballet de l'Opéra.",
+      en: "A masterpiece by Charles Garnier inaugurated in 1875, the Palais Garnier is one of the world's most opulent theaters. Its grand marble staircase, gilded boxes, 8-ton chandelier and ceiling painted by Marc Chagall in 1964 make it legendary. Historic home of the Paris Opera and Ballet."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Paris_Opera_full_frontal_architecture%2C_May_2011.jpg/1200px-Paris_Opera_full_frontal_architecture%2C_May_2011.jpg",
+    shows: [
+      {title:"Le Lac des Cygnes",  author:"Tchaïkovski",        genre:{fr:"Ballet",              en:"Ballet"},             image:"https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/Odette_swan_lake_1895.jpg/400px-Odette_swan_lake_1895.jpg"},
+      {title:"Carmen",             author:"Georges Bizet",      genre:{fr:"Opéra",               en:"Opera"},              image:""},
+      {title:"Giselle",            author:"Adolphe Adam",       genre:{fr:"Ballet romantique",   en:"Romantic ballet"},    image:""}
+    ]
+  },
+  {
+    id:2,
+    name:     {fr:"Opéra Bastille",      en:"Opéra Bastille"},
+    subtitle: {fr:"Opéra national de Paris", en:"Paris National Opera"},
+    address:  "Place de la Bastille, 75012 Paris",
+    arrdt:    "12e",
+    coords:   {lat:48.8533, lng:2.3691},
+    phone:    "+33 1 71 25 24 23",
+    website:  "https://www.operadeparis.fr",
+    hours:    {fr:"Billetterie : Lun–Sam 11h30–18h30", en:"Box office: Mon–Sat 11:30am–6:30pm"},
+    price:    {fr:"10–230 €", en:"€10–230"},
+    founded:  1989,
+    capacity: 2723,
+    types:    {fr:["Opéra","Lyrique"],  en:["Opera","Lyric"]},
+    description: {
+      fr: "Inauguré par François Mitterrand le 14 juillet 1989 pour le bicentenaire de la Révolution, l'Opéra Bastille est la grande salle lyrique de la capitale. Sa jauge de 2 723 places et ses équipements ultramodernes en font l'une des scènes d'opéra les plus importantes d'Europe, avec plus de 300 représentations annuelles.",
+      en: "Inaugurated by François Mitterrand on July 14, 1989 for the bicentennial of the Revolution, the Opéra Bastille is the capital's great opera house. With 2,723 seats and ultramodern facilities, it is one of Europe's most important opera stages, with more than 300 performances annually."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Opera_Bastille_-_2012_04_12_-_panorama.jpg/1200px-Opera_Bastille_-_2012_04_12_-_panorama.jpg",
+    shows: [
+      {title:"La Traviata",          author:"Giuseppe Verdi",  genre:{fr:"Opéra",            en:"Opera"},  image:""},
+      {title:"Don Giovanni",         author:"W.A. Mozart",     genre:{fr:"Opéra",            en:"Opera"},  image:""},
+      {title:"Pelléas et Mélisande", author:"Claude Debussy",  genre:{fr:"Opéra symboliste", en:"Opera"},  image:""}
+    ]
+  },
+  {
+    id:3,
+    name:     {fr:"Comédie-Française",    en:"Comédie-Française"},
+    subtitle: {fr:"Fondée en 1680 par Louis XIV", en:"Founded 1680 by Louis XIV"},
+    address:  "Place Colette, 75001 Paris",
+    arrdt:    "1er",
+    coords:   {lat:48.8634, lng:2.3370},
+    phone:    "+33 1 44 58 15 15",
+    website:  "https://www.comedie-francaise.fr",
+    hours:    {fr:"Billetterie : Mer–Dim 13h–18h", en:"Box office: Wed–Sun 1pm–6pm"},
+    price:    {fr:"6–49 €", en:"€6–49"},
+    founded:  1680,
+    capacity: 862,
+    types:    {fr:["Classique","Contemporain","Répertoire"], en:["Classical","Contemporary","Repertoire"]},
+    description: {
+      fr: "Fondée en 1680 par Louis XIV, la Comédie-Française — surnommée «la Maison de Molière» — est la plus ancienne troupe théâtrale en activité du monde. Sa salle Richelieu, inaugurée en 1790, accueille chaque saison une cinquantaine de spectacles issus d'un répertoire de plus de 3 000 pièces.",
+      en: "Founded in 1680 by Louis XIV, the Comédie-Française — nicknamed 'the House of Molière' — is the world's oldest active theatrical company. Its Salle Richelieu, inaugurated in 1790, hosts around fifty productions each season from a repertoire of more than 3,000 plays."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/Facade_comedie_francaise.jpg/1200px-Facade_comedie_francaise.jpg",
+    shows: [
+      {title:"Le Misanthrope",  author:"Molière",       genre:{fr:"Comédie classique", en:"Classical comedy"}, image:""},
+      {title:"Phèdre",          author:"Jean Racine",   genre:{fr:"Tragédie",          en:"Tragedy"},          image:""},
+      {title:"Hernani",         author:"Victor Hugo",   genre:{fr:"Drame romantique",  en:"Romantic drama"},   image:""}
+    ]
+  },
+  {
+    id:4,
+    name:     {fr:"Théâtre de l'Odéon",   en:"Odéon Theater"},
+    subtitle: {fr:"Théâtre de l'Europe",  en:"Theater of Europe"},
+    address:  "Place de l'Odéon, 75006 Paris",
+    arrdt:    "6e",
+    coords:   {lat:48.8508, lng:2.3399},
+    phone:    "+33 1 44 85 40 40",
+    website:  "https://www.theatre-odeon.eu",
+    hours:    {fr:"Billetterie : Lun–Sam 11h–19h", en:"Box office: Mon–Sat 11am–7pm"},
+    price:    {fr:"6–39 €", en:"€6–39"},
+    founded:  1782,
+    capacity: 1082,
+    types:    {fr:["Contemporain","Européen","Classique"], en:["Contemporary","European","Classical"]},
+    description: {
+      fr: "Fondé en 1782 sous Louis XVI, l'Odéon – Théâtre de l'Europe est le second théâtre national de France. Il se distingue par sa vocation européenne, accueillant des compagnies du monde entier. Son architecture néoclassique sur la rive gauche en fait un symbole de la vie intellectuelle et culturelle parisienne.",
+      en: "Founded in 1782 under Louis XVI, the Odéon – Théâtre de l'Europe is France's second national theater. It stands out for its European vocation, welcoming companies from around the world. Its neoclassical architecture on the Left Bank makes it a symbol of Parisian intellectual and cultural life."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Odeon_Theatre_de_l_Europe.jpg/1200px-Odeon_Theatre_de_l_Europe.jpg",
+    shows: [
+      {title:"En attendant Godot", author:"Samuel Beckett",    genre:{fr:"Absurde",   en:"Absurdist"}, image:""},
+      {title:"Hamlet",             author:"W. Shakespeare",    genre:{fr:"Tragédie",  en:"Tragedy"},   image:""},
+      {title:"Les Bonnes",         author:"Jean Genet",        genre:{fr:"Théâtre",   en:"Theater"},   image:""}
+    ]
+  },
+  {
+    id:5,
+    name:     {fr:"Théâtre du Châtelet",  en:"Théâtre du Châtelet"},
+    subtitle: {fr:"Musicals & spectacles",en:"Musicals & Spectacles"},
+    address:  "1 Place du Châtelet, 75001 Paris",
+    arrdt:    "1er",
+    coords:   {lat:48.8582, lng:2.3469},
+    phone:    "+33 1 40 28 28 40",
+    website:  "https://www.chatelet.com",
+    hours:    {fr:"Billetterie : Lun–Sam 12h–19h", en:"Box office: Mon–Sat noon–7pm"},
+    price:    {fr:"10–130 €", en:"€10–130"},
+    founded:  1862,
+    capacity: 2483,
+    types:    {fr:["Musical","Opéra","Concert"], en:["Musical","Opera","Concert"]},
+    description: {
+      fr: "Construit sous Haussmann en 1862, le Châtelet est l'une des plus grandes scènes parisiennes avec ses 2 483 places. Il s'est imposé comme la maison des grands musicals à Paris tout en accueillant opéras lyriques, concerts symphoniques et spectacles de prestige international.",
+      en: "Built under Haussmann in 1862, the Châtelet is one of Paris's largest stages with 2,483 seats. It has established itself as the home of great musicals in Paris while also hosting lyric operas, symphonic concerts, and prestigious international shows."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Theatre_du_Chatelet%2C_Paris_%286133757371%29.jpg/1200px-Theatre_du_Chatelet%2C_Paris_%286133757371%29.jpg",
+    shows: [
+      {title:"Les Misérables",   author:"Claude-Michel Schönberg", genre:{fr:"Comédie musicale", en:"Musical"}, image:""},
+      {title:"Chicago",          author:"Kander & Ebb",            genre:{fr:"Comédie musicale", en:"Musical"}, image:""},
+      {title:"West Side Story",  author:"Leonard Bernstein",       genre:{fr:"Comédie musicale", en:"Musical"}, image:""}
+    ]
+  },
+  {
+    id:6,
+    name:     {fr:"Théâtre de la Ville",  en:"Théâtre de la Ville"},
+    subtitle: {fr:"Danse & arts du monde",en:"Dance & World Arts"},
+    address:  "2 Place du Châtelet, 75004 Paris",
+    arrdt:    "4e",
+    coords:   {lat:48.8584, lng:2.3474},
+    phone:    "+33 1 42 74 22 77",
+    website:  "https://www.theatredelaville-paris.com",
+    hours:    {fr:"Billetterie : Lun 11h–19h, Mar–Sam 11h–20h", en:"Box office: Mon 11am–7pm, Tue–Sat 11am–8pm"},
+    price:    {fr:"8–33 €", en:"€8–33"},
+    founded:  1862,
+    capacity: 1000,
+    types:    {fr:["Danse","Contemporain","Musiques du monde"], en:["Dance","Contemporary","World Music"]},
+    description: {
+      fr: "Face au Châtelet, le Théâtre de la Ville est depuis les années 1970 la grande maison parisienne de la danse contemporaine et des musiques du monde. Dirigé par Sarah Bernhardt de 1899 à 1923, il accueille aujourd'hui les plus grands chorégraphes et compagnies du monde entier.",
+      en: "Facing the Châtelet, the Théâtre de la Ville has been the great Parisian home of contemporary dance and world music since the 1970s. Managed by Sarah Bernhardt from 1899 to 1923, it now welcomes the world's greatest choreographers and companies."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Paris-75004-place-du-chatelet-theatre-de-la-ville-a.jpg/1200px-Paris-75004-place-du-chatelet-theatre-de-la-ville-a.jpg",
+    shows: [
+      {title:"Spectacles de danse",     author:"Pina Bausch, Akram Khan…", genre:{fr:"Danse contemporaine", en:"Contemporary dance"}, image:""},
+      {title:"Musiques du monde",       author:"Artistes internationaux",  genre:{fr:"World music",         en:"World music"},         image:""},
+      {title:"Créations chorégraphiques",author:"Grands chorégraphes",     genre:{fr:"Danse",               en:"Dance"},               image:""}
+    ]
+  },
+  {
+    id:7,
+    name:     {fr:"Théâtre des Champs-Élysées", en:"Théâtre des Champs-Élysées"},
+    subtitle: {fr:"Art déco & prestige",         en:"Art Deco & Prestige"},
+    address:  "15 Avenue Montaigne, 75008 Paris",
+    arrdt:    "8e",
+    coords:   {lat:48.8660, lng:2.3062},
+    phone:    "+33 1 49 52 50 50",
+    website:  "https://www.theatrechampselysees.fr",
+    hours:    {fr:"Billetterie : Lun–Sam 13h–18h30", en:"Box office: Mon–Sat 1pm–6:30pm"},
+    price:    {fr:"10–130 €", en:"€10–130"},
+    founded:  1913,
+    capacity: 2000,
+    types:    {fr:["Concert","Opéra","Ballet"], en:["Concert","Opera","Ballet"]},
+    description: {
+      fr: "Inauguré en 1913, cet édifice art déco d'Auguste Perret est historique à plus d'un titre. Il a accueilli la création scandaleuse du Sacre du Printemps de Stravinsky, Joséphine Baker, les Ballets Russes de Diaghilev. Temple de la musique classique, il attire les plus grands artistes et orchestres du monde.",
+      en: "Inaugurated in 1913, this Art Deco building by Auguste Perret is historic on multiple counts. It hosted the scandalous premiere of Stravinsky's Rite of Spring, Joséphine Baker, and Diaghilev's Ballets Russes. A temple of classical music, it attracts the world's greatest artists and orchestras."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Theatre_des_Champs-Elysees_IMG_4832.jpg/1200px-Theatre_des_Champs-Elysees_IMG_4832.jpg",
+    shows: [
+      {title:"Le Sacre du Printemps", author:"Igor Stravinsky",       genre:{fr:"Ballet – création 1913", en:"Ballet – 1913 premiere"}, image:""},
+      {title:"Récitals & symphonies", author:"Grands orchestres",     genre:{fr:"Concert classique",      en:"Classical concert"},       image:""},
+      {title:"Soirées lyriques",      author:"Artistes de renommée",  genre:{fr:"Opéra de chambre",       en:"Chamber opera"},           image:""}
+    ]
+  },
+  {
+    id:8,
+    name:     {fr:"Théâtre du Palais-Royal",  en:"Théâtre du Palais-Royal"},
+    subtitle: {fr:"Vaudeville & comédie légère", en:"Vaudeville & Light Comedy"},
+    address:  "38 Rue de Montpensier, 75001 Paris",
+    arrdt:    "1er",
+    coords:   {lat:48.8644, lng:2.3361},
+    phone:    "+33 1 42 97 59 81",
+    website:  "https://www.theatredupalaisroyal.com",
+    hours:    {fr:"Billetterie : Mar–Sam 11h–19h", en:"Box office: Tue–Sat 11am–7pm"},
+    price:    {fr:"15–50 €", en:"€15–50"},
+    founded:  1784,
+    capacity: 750,
+    types:    {fr:["Comédie","Vaudeville","Boulevard"], en:["Comedy","Vaudeville","Boulevard"]},
+    description: {
+      fr: "Niché dans les galeries du Palais-Royal depuis 1784, ce théâtre à l'italienne est la maison historique du vaudeville et de la comédie légère. Molière y joua, Feydeau y triompha. Son décor Second Empire intégral en fait l'un des joyaux architecturaux des théâtres parisiens.",
+      en: "Nestled in the galleries of the Palais-Royal since 1784, this Italian-style theater is the historic home of vaudeville and light comedy. Molière performed here and Feydeau triumphed. Its intact Second Empire décor makes it one of the architectural jewels of Parisian theaters."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Theatre_du_Palais-Royal_Paris.jpg/1200px-Theatre_du_Palais-Royal_Paris.jpg",
+    shows: [
+      {title:"La Dame de chez Maxim",  author:"Georges Feydeau", genre:{fr:"Vaudeville", en:"Vaudeville"}, image:""},
+      {title:"Le Dindon",              author:"Georges Feydeau", genre:{fr:"Vaudeville", en:"Vaudeville"}, image:""},
+      {title:"Comédies contemporaines",author:"Divers auteurs",  genre:{fr:"Comédie",   en:"Comedy"},     image:""}
+    ]
+  },
+  {
+    id:9,
+    name:     {fr:"Théâtre de l'Atelier",    en:"Théâtre de l'Atelier"},
+    subtitle: {fr:"La Butte Montmartre",     en:"Montmartre Hill"},
+    address:  "1 Place Charles Dullin, 75018 Paris",
+    arrdt:    "18e",
+    coords:   {lat:48.8845, lng:2.3444},
+    phone:    "+33 1 46 06 49 24",
+    website:  "https://www.theatre-atelier.com",
+    hours:    {fr:"Billetterie : Mar–Sam 14h–19h", en:"Box office: Tue–Sat 2pm–7pm"},
+    price:    {fr:"13–44 €", en:"€13–44"},
+    founded:  1822,
+    capacity: 520,
+    types:    {fr:["Classique","Contemporain"], en:["Classical","Contemporary"]},
+    description: {
+      fr: "Installé au pied de la Butte Montmartre depuis 1822, le Théâtre de l'Atelier porte le nom de Charles Dullin, l'un des grands réformateurs du théâtre français du XXe siècle. Cette salle intime, à l'atmosphère unique de cave voûtée, reste un haut lieu du théâtre parisien de qualité.",
+      en: "Established at the foot of the Montmartre hill since 1822, the Théâtre de l'Atelier bears the name of Charles Dullin, one of the great reformers of 20th-century French theater. This intimate venue, with its unique vaulted cellar atmosphere, remains a leading venue for quality Parisian theater."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Th%C3%A9%C3%A2tre_de_l%27Atelier_%28Paris%29.jpg/1200px-Th%C3%A9%C3%A2tre_de_l%27Atelier_%28Paris%29.jpg",
+    shows: [
+      {title:"Classiques revisités",   author:"Molière, Marivaux…", genre:{fr:"Classique",    en:"Classical"},    image:""},
+      {title:"Créations contemporaines",author:"Auteurs vivants",   genre:{fr:"Contemporain", en:"Contemporary"}, image:""},
+      {title:"Spectacles famille",     author:"Compagnies invitées",genre:{fr:"Jeunesse",      en:"Youth"},        image:""}
+    ]
+  },
+  {
+    id:10,
+    name:     {fr:"Théâtre du Rond-Point",    en:"Théâtre du Rond-Point"},
+    subtitle: {fr:"Création & comédie",       en:"Creation & Comedy"},
+    address:  "2bis Av. Franklin D. Roosevelt, 75008 Paris",
+    arrdt:    "8e",
+    coords:   {lat:48.8669, lng:2.3130},
+    phone:    "+33 1 44 95 98 21",
+    website:  "https://www.theatredurondpoint.fr",
+    hours:    {fr:"Billetterie : Lun–Sam 11h–18h", en:"Box office: Mon–Sat 11am–6pm"},
+    price:    {fr:"10–30 €", en:"€10–30"},
+    founded:  1981,
+    capacity: 756,
+    types:    {fr:["Contemporain","Comédie","Création"], en:["Contemporary","Comedy","Creation"]},
+    description: {
+      fr: "Dirigé par Jean-Michel Ribes depuis 2002, le Théâtre du Rond-Point sur les Champs-Élysées est une scène dédiée à la création contemporaine et à la comédie. Il défend un théâtre populaire et exigeant, ouvert aux nouvelles écritures, aux one-man shows et aux spectacles vivants décalés.",
+      en: "Directed by Jean-Michel Ribes since 2002, the Théâtre du Rond-Point on the Champs-Élysées is a stage dedicated to contemporary creation and comedy. It champions popular yet demanding theater, open to new writing, one-man shows, and off-beat live performances."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Th%C3%A9%C3%A2tre_du_Rond-Point.jpg/1200px-Th%C3%A9%C3%A2tre_du_Rond-Point.jpg",
+    shows: [
+      {title:"Créations contemporaines", author:"Jean-Michel Ribes et al.", genre:{fr:"Contemporain", en:"Contemporary"}, image:""},
+      {title:"One-man shows",            author:"Humoristes & comédiens",   genre:{fr:"Comédie",      en:"Comedy"},       image:""},
+      {title:"Nouvelles écritures",      author:"Auteurs émergents",        genre:{fr:"Arts vivants", en:"Performing arts"},image:""}
+    ]
+  },
+  {
+    id:11,
+    name:     {fr:"Théâtre National de Chaillot", en:"Théâtre National de Chaillot"},
+    subtitle: {fr:"Danse au Trocadéro",           en:"Dance at the Trocadéro"},
+    address:  "1 Place du Trocadéro, 75116 Paris",
+    arrdt:    "16e",
+    coords:   {lat:48.8619, lng:2.2893},
+    phone:    "+33 1 53 65 30 00",
+    website:  "https://theatre-chaillot.fr",
+    hours:    {fr:"Billetterie : Lun–Ven 11h–19h, Sam 14h–19h", en:"Box office: Mon–Fri 11am–7pm, Sat 2–7pm"},
+    price:    {fr:"10–36 €", en:"€10–36"},
+    founded:  1937,
+    capacity: 1260,
+    types:    {fr:["Danse","Contemporain","Spectacle vivant"], en:["Dance","Contemporary","Performing arts"]},
+    description: {
+      fr: "Niché dans le palais de Chaillot avec vue sur la Tour Eiffel, ce théâtre national est la grande maison française de la danse internationale et du théâtre contemporain. Jean Vilar y fonda le Théâtre National Populaire en 1951. Sa grande salle Art déco reste l'un des plus beaux espaces scéniques de Paris.",
+      en: "Nestled in the Chaillot Palace overlooking the Eiffel Tower, this national theater is France's great house of international dance and contemporary theater. Jean Vilar founded the Théâtre National Populaire here in 1951. Its great Art Deco hall remains one of Paris's most beautiful scenic spaces."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Palais_de_Chaillot%2C_Paris_2012.jpg/1200px-Palais_de_Chaillot%2C_Paris_2012.jpg",
+    shows: [
+      {title:"Danse internationale",        author:"Chorégraphes du monde", genre:{fr:"Danse",         en:"Dance"},         image:""},
+      {title:"Théâtre contemporain",        author:"Metteurs en scène",     genre:{fr:"Théâtre",       en:"Theater"},       image:""},
+      {title:"Spectacles pluridisciplinaires",author:"Artistes actuels",    genre:{fr:"Arts vivants",  en:"Performing arts"},image:""}
+    ]
+  },
+  {
+    id:12,
+    name:     {fr:"Théâtre Antoine",      en:"Théâtre Antoine"},
+    subtitle: {fr:"Berceau du naturalisme", en:"Cradle of Naturalism"},
+    address:  "14 Bd de Strasbourg, 75010 Paris",
+    arrdt:    "10e",
+    coords:   {lat:48.8706, lng:2.3508},
+    phone:    "+33 1 42 08 77 71",
+    website:  "https://www.theatre-antoine.com",
+    hours:    {fr:"Billetterie : Mar–Sam 14h–19h", en:"Box office: Tue–Sat 2pm–7pm"},
+    price:    {fr:"15–50 €", en:"€15–50"},
+    founded:  1866,
+    capacity: 669,
+    types:    {fr:["Boulevard","Drame","Classique"], en:["Boulevard","Drama","Classical"]},
+    description: {
+      fr: "Fondé par André Antoine en 1897, ce théâtre est à l'origine du mouvement naturaliste en France. Antoine y révolutionna la mise en scène en imposant la vérité du quotidien sur scène — décors réels, acteurs non maquillés. Aujourd'hui, il accueille les grandes pièces de boulevard et des créations contemporaines.",
+      en: "Founded by André Antoine in 1897, this theater is at the origin of the naturalist movement in France. Antoine revolutionized staging here by imposing everyday truth on stage — real sets, non-made-up actors. Today, it hosts major boulevard plays and contemporary productions."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/Th%C3%A9%C3%A2tre_Antoine_-_Paris_-_fa%C3%A7ade.jpg/1200px-Th%C3%A9%C3%A2tre_Antoine_-_Paris_-_fa%C3%A7ade.jpg",
+    shows: [
+      {title:"Pièces de boulevard",   author:"Sacha Guitry, Feydeau…", genre:{fr:"Boulevard", en:"Boulevard"}, image:""},
+      {title:"Drames contemporains",  author:"Auteurs vivants",         genre:{fr:"Drame",    en:"Drama"},      image:""},
+      {title:"Reprises classiques",   author:"Divers metteurs en scène",genre:{fr:"Classique", en:"Classical"}, image:""}
+    ]
+  },
+  {
+    id:13,
+    name:     {fr:"La Cartoucherie – Théâtre du Soleil", en:"La Cartoucherie – Théâtre du Soleil"},
+    subtitle: {fr:"Ariane Mnouchkine",                  en:"Ariane Mnouchkine"},
+    address:  "Route du Champ de Manœuvre, 75012 Paris",
+    arrdt:    "12e",
+    coords:   {lat:48.8313, lng:2.4479},
+    phone:    "+33 1 43 74 24 08",
+    website:  "https://www.theatre-du-soleil.fr",
+    hours:    {fr:"Variables selon les spectacles", en:"Varies by performance"},
+    price:    {fr:"~26 €", en:"~€26"},
+    founded:  1970,
+    capacity: 400,
+    types:    {fr:["Contemporain","Politique","Expérimental"], en:["Contemporary","Political","Experimental"]},
+    description: {
+      fr: "Installé dans les anciens ateliers militaires du Bois de Vincennes, le Théâtre du Soleil d'Ariane Mnouchkine est une institution du théâtre mondial. Ce collectif fondé en 1964 crée des spectacles épiques mêlant toutes les disciplines, profondément engagés politiquement et culturellement.",
+      en: "Installed in the old military workshops of the Bois de Vincennes, Ariane Mnouchkine's Théâtre du Soleil is a world theater institution. This collective founded in 1964 creates epic shows mixing all disciplines, deeply committed politically and culturally."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Cartoucherie_de_Vincennes.jpg/1200px-Cartoucherie_de_Vincennes.jpg",
+    shows: [
+      {title:"1789",                author:"Théâtre du Soleil",  genre:{fr:"Théâtre politique", en:"Political theater"},  image:""},
+      {title:"Les Atrides",         author:"Ariane Mnouchkine",  genre:{fr:"Théâtre épique",    en:"Epic theater"},       image:""},
+      {title:"Tambours sur la Digue",author:"Hélène Cixous",    genre:{fr:"Théâtre-marionnettes",en:"Puppet theater"},    image:""}
+    ]
+  },
+  {
+    id:14,
+    name:     {fr:"Théâtre de la Renaissance", en:"Théâtre de la Renaissance"},
+    subtitle: {fr:"Grands Boulevards",         en:"Grand Boulevards"},
+    address:  "20 Bd Saint-Martin, 75010 Paris",
+    arrdt:    "10e",
+    coords:   {lat:48.8665, lng:2.3534},
+    phone:    "+33 1 42 08 18 50",
+    website:  "https://www.theatre-renaissance.com",
+    hours:    {fr:"Billetterie : Lun–Sam 11h–19h", en:"Box office: Mon–Sat 11am–7pm"},
+    price:    {fr:"15–50 €", en:"€15–50"},
+    founded:  1838,
+    capacity: 680,
+    types:    {fr:["Boulevard","Comédie","Drame"], en:["Boulevard","Comedy","Drama"]},
+    description: {
+      fr: "Ouvert en 1838, le Théâtre de la Renaissance est l'un des théâtres historiques des Grands Boulevards. Sarah Bernhardt y fit ses premiers grands triomphes avant la Comédie-Française. Il accueille des comédies et drames populaires de qualité, représentatifs du meilleur du théâtre de boulevard parisien.",
+      en: "Opened in 1838, the Théâtre de la Renaissance is one of the historic theaters of the Grand Boulevards. Sarah Bernhardt scored her first great triumphs here before the Comédie-Française. It hosts quality popular comedies and dramas, representative of the best of Parisian boulevard theater."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Th%C3%A9%C3%A2tre_de_la_Renaissance%2C_Paris.jpg/1200px-Th%C3%A9%C3%A2tre_de_la_Renaissance%2C_Paris.jpg",
+    shows: [
+      {title:"Comédies de boulevard",  author:"Feydeau, Guitry…", genre:{fr:"Boulevard", en:"Boulevard"}, image:""},
+      {title:"Drames contemporains",   author:"Auteurs actuels",   genre:{fr:"Drame",    en:"Drama"},      image:""},
+      {title:"Spectacles grand public",author:"Divers artistes",   genre:{fr:"Spectacle",en:"Show"},       image:""}
+    ]
+  },
+  {
+    id:15,
+    name:     {fr:"Théâtre de la Madeleine",   en:"Théâtre de la Madeleine"},
+    subtitle: {fr:"Prestige & boulevard",      en:"Prestige & Boulevard"},
+    address:  "19 Rue de Surène, 75008 Paris",
+    arrdt:    "8e",
+    coords:   {lat:48.8741, lng:2.3237},
+    phone:    "+33 1 42 65 07 09",
+    website:  "https://www.theatrelamadeleine.com",
+    hours:    {fr:"Billetterie : Mar–Sam 11h–19h", en:"Box office: Tue–Sat 11am–7pm"},
+    price:    {fr:"20–60 €", en:"€20–60"},
+    founded:  1845,
+    capacity: 795,
+    types:    {fr:["Boulevard","Comédie","Classique"], en:["Boulevard","Comedy","Classical"]},
+    description: {
+      fr: "À deux pas de l'église de la Madeleine, ce théâtre du 8e est l'une des scènes de boulevard les plus prestigieuses de Paris. Sacha Guitry, Jean Cocteau, Simone Signoret et Pierre Brasseur y ont marqué leur époque. Il accueille des productions haut de gamme avec de grandes distributions.",
+      en: "Steps from the Madeleine church, this theater in the 8th is one of Paris's most prestigious boulevard stages. Sacha Guitry, Jean Cocteau, Simone Signoret, and Pierre Brasseur all made their mark here. It hosts high-end productions with great casts."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Theatre_de_la_Madeleine_Paris.jpg/1200px-Theatre_de_la_Madeleine_Paris.jpg",
+    shows: [
+      {title:"Pièces de Sacha Guitry", author:"Sacha Guitry",  genre:{fr:"Boulevard", en:"Boulevard"}, image:""},
+      {title:"Comédies légères",       author:"Auteurs français",genre:{fr:"Comédie", en:"Comedy"},     image:""},
+      {title:"Grands classiques",      author:"Répertoire",     genre:{fr:"Classique",en:"Classical"},  image:""}
+    ]
+  },
+  {
+    id:16,
+    name:     {fr:"Théâtre Montparnasse",   en:"Théâtre Montparnasse"},
+    subtitle: {fr:"Rive gauche, depuis 1820", en:"Left Bank, since 1820"},
+    address:  "31 Rue de la Gaîté, 75014 Paris",
+    arrdt:    "14e",
+    coords:   {lat:48.8383, lng:2.3234},
+    phone:    "+33 1 43 22 77 74",
+    website:  "https://www.theatremontparnasse.com",
+    hours:    {fr:"Billetterie : Lun–Sam 11h–19h", en:"Box office: Mon–Sat 11am–7pm"},
+    price:    {fr:"15–49 €", en:"€15–49"},
+    founded:  1820,
+    capacity: 614,
+    types:    {fr:["Boulevard","Comédie","Drame"], en:["Boulevard","Comedy","Drama"]},
+    description: {
+      fr: "Fondé en 1820, le Théâtre Montparnasse est l'une des salles historiques de la rive gauche. Sa programmation mêle grandes comédies de boulevard, drames contemporains et pièces policières. La rue de la Gaîté, dont il fait partie, est l'un des derniers quartiers de théâtres populaires de Paris.",
+      en: "Founded in 1820, the Théâtre Montparnasse is one of the historic venues of the Left Bank. Its programming blends boulevard comedies, contemporary dramas, and crime plays. The Rue de la Gaîté, of which it is part, is one of the last neighborhoods of popular theaters in Paris."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Th%C3%A9%C3%A2tre_Montparnasse.jpg/1200px-Th%C3%A9%C3%A2tre_Montparnasse.jpg",
+    shows: [
+      {title:"Comédies",         author:"Auteurs de boulevard", genre:{fr:"Comédie",      en:"Comedy"},         image:""},
+      {title:"Pièces policières",author:"Agatha Christie…",     genre:{fr:"Polar",        en:"Crime drama"},    image:""},
+      {title:"Créations",        author:"Compagnies parisiennes",genre:{fr:"Contemporain",en:"Contemporary"},   image:""}
+    ]
+  },
+  {
+    id:17,
+    name:     {fr:"Théâtre du Gymnase",  en:"Théâtre du Gymnase"},
+    subtitle: {fr:"Grands Boulevards, 1820", en:"Grand Boulevards, 1820"},
+    address:  "38 Bd Bonne Nouvelle, 75010 Paris",
+    arrdt:    "10e",
+    coords:   {lat:48.8692, lng:2.3519},
+    phone:    "+33 1 42 46 79 79",
+    website:  "https://www.theatredugymnase.com",
+    hours:    {fr:"Billetterie : Mar–Sam 14h–19h", en:"Box office: Tue–Sat 2pm–7pm"},
+    price:    {fr:"15–49 €", en:"€15–49"},
+    founded:  1820,
+    capacity: 788,
+    types:    {fr:["Boulevard","Comédie"], en:["Boulevard","Comedy"]},
+    description: {
+      fr: "Inauguré en 1820 sur les Grands Boulevards, le Gymnase Marie Bell est l'un des théâtres historiques parisiens. La tragédienne Rachel y débuta en 1838 avant la Comédie-Française. Il propose une programmation classique de boulevard et de comédie dans un cadre Second Empire soigneusement restauré.",
+      en: "Inaugurated in 1820 on the Grand Boulevards, the Gymnase Marie Bell is one of Paris's historic theaters. The tragedian Rachel made her debut here in 1838 before the Comédie-Française. It offers classic boulevard and comedy programming in a carefully restored Second Empire setting."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Th%C3%A9%C3%A2tre_du_Gymnase_Marie_Bell.JPG/1200px-Th%C3%A9%C3%A2tre_du_Gymnase_Marie_Bell.JPG",
+    shows: [
+      {title:"Comédies de boulevard",  author:"Feydeau, Labiche…",  genre:{fr:"Boulevard", en:"Boulevard"}, image:""},
+      {title:"Spectacles grand public",author:"Divers artistes",     genre:{fr:"Comédie",  en:"Comedy"},     image:""},
+      {title:"Reprises classiques",    author:"Répertoire français", genre:{fr:"Classique",en:"Classical"},  image:""}
+    ]
+  },
+  {
+    id:18,
+    name:     {fr:"Théâtre de la Gaîté-Montparnasse", en:"Gaîté-Montparnasse Theater"},
+    subtitle: {fr:"One-man shows & café-théâtre",     en:"One-man Shows & Café-Theater"},
+    address:  "26 Rue de la Gaîté, 75014 Paris",
+    arrdt:    "14e",
+    coords:   {lat:48.8387, lng:2.3239},
+    phone:    "+33 1 43 22 16 18",
+    website:  "https://www.gaite-montparnasse.com",
+    hours:    {fr:"Billetterie : Mar–Sam 14h–19h", en:"Box office: Tue–Sat 2pm–7pm"},
+    price:    {fr:"12–35 €", en:"€12–35"},
+    founded:  1868,
+    capacity: 350,
+    types:    {fr:["Comédie","Humour","Café-théâtre"], en:["Comedy","Humor","Café-theater"]},
+    description: {
+      fr: "Fondée en 1868, la Gaîté-Montparnasse est une salle intime dédiée aux one-man shows, comédies et spectacles d'humour. Nichée dans la rue de la Gaîté, artère historique du divertissement populaire du 14e, elle révèle les talents de la scène comique parisienne d'aujourd'hui et de demain.",
+      en: "Founded in 1868, the Gaîté-Montparnasse is an intimate venue dedicated to one-man shows, comedies and humor. Nestled in the Rue de la Gaîté, the historic popular entertainment street of the 14th, it reveals the talents of today's and tomorrow's Parisian comedy scene."
+    },
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/Rue_de_la_Gaite_-_Paris_XIV.jpg/1200px-Rue_de_la_Gaite_-_Paris_XIV.jpg",
+    shows: [
+      {title:"One-man shows",   author:"Humoristes parisiens", genre:{fr:"Humour",        en:"Humor"},         image:""},
+      {title:"Comédies légères",author:"Compagnies locales",   genre:{fr:"Comédie",       en:"Comedy"},        image:""},
+      {title:"Café-théâtre",    author:"Artistes émergents",   genre:{fr:"Café-théâtre",  en:"Café-theater"},  image:""}
+    ]
+  }
+];
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let lang = 'fr';
+let currentTab = 'list';
+let activeFilter = 'all';
+let searchText = '';
+let favorites = [];
+try { favorites = JSON.parse(localStorage.getItem('theatres-paris-favs') || '[]'); } catch(e) {}
+let currentDetail = null;
+let mapInit = false;
+let lMap = null;
+
+// ═══════════════════════════════════════════════════════════
+// LANGUAGE
+// ═══════════════════════════════════════════════════════════
+function setLang(l) {
+  lang = l;
+  document.getElementById('btn-fr').classList.toggle('active', l === 'fr');
+  document.getElementById('btn-en').classList.toggle('active', l === 'en');
+  document.getElementById('search-input').placeholder =
+    l === 'fr' ? 'Rechercher un théâtre…' : 'Search for a theater…';
+  const chips = {
+    all:{fr:'Tous',en:'All'}, opéra:{fr:'Opéra',en:'Opera'},
+    ballet:{fr:'Ballet',en:'Ballet'}, classique:{fr:'Classique',en:'Classical'},
+    contemporain:{fr:'Contemporain',en:'Contemporary'}, comédie:{fr:'Comédie',en:'Comedy'},
+    boulevard:{fr:'Boulevard',en:'Boulevard'}, musical:{fr:'Musical',en:'Musical'},
+    danse:{fr:'Danse',en:'Dance'}, concert:{fr:'Concert',en:'Concert'}
+  };
+  document.querySelectorAll('.chip').forEach(c => {
+    const f = c.dataset.filter;
+    if (chips[f]) c.textContent = chips[f][l];
+  });
+  document.querySelectorAll('.nav-label').forEach(el => { el.textContent = el.dataset[l]; });
+  renderList();
+  if (currentDetail) openDetail(currentDetail.id, false);
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILTER & SEARCH
+// ═══════════════════════════════════════════════════════════
+function setFilter(f) {
+  activeFilter = f;
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
+  renderList();
+}
+
+function filterList() {
+  searchText = document.getElementById('search-input').value.toLowerCase();
+  renderList();
+}
+
+function getFiltered() {
+  return THEATRES.filter(t => {
+    const types = t.types[lang].map(x => x.toLowerCase());
+    const matchSearch = !searchText
+      || t.name[lang].toLowerCase().includes(searchText)
+      || t.address.toLowerCase().includes(searchText)
+      || t.description[lang].toLowerCase().includes(searchText)
+      || types.some(x => x.includes(searchText));
+    const matchFilter = activeFilter === 'all' || types.some(x => x.includes(activeFilter.toLowerCase()));
+    return matchSearch && matchFilter;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAG STYLE
+// ═══════════════════════════════════════════════════════════
+function tagClass(type) {
+  const t = type.toLowerCase();
+  if (t.includes('opéra') || t.includes('opera') || t.includes('lyrique')) return 'tag-opera';
+  if (t.includes('ballet')) return 'tag-ballet';
+  if (t.includes('classique') || t.includes('classical') || t.includes('répertoire')) return 'tag-classique';
+  if (t.includes('contemporain') || t.includes('contemporary') || t.includes('européen') || t.includes('expérimental')) return 'tag-contem';
+  if (t.includes('comédie') || t.includes('comedy') || t.includes('humour') || t.includes('humor') || t.includes('vaudeville')) return 'tag-comedie';
+  if (t.includes('danse') || t.includes('dance')) return 'tag-danse';
+  if (t.includes('boulevard')) return 'tag-boulevard';
+  if (t.includes('musical')) return 'tag-musical';
+  if (t.includes('concert')) return 'tag-concert';
+  return 'tag-default';
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER LIST
+// ═══════════════════════════════════════════════════════════
+function renderList() {
+  const filtered = getFiltered();
+  const badge = document.getElementById('count-badge');
+  badge.textContent = lang === 'fr'
+    ? `${filtered.length} théâtre${filtered.length !== 1 ? 's' : ''}`
+    : `${filtered.length} theater${filtered.length !== 1 ? 's' : ''}`;
+  const view = document.getElementById('list-view');
+  if (!filtered.length) {
+    view.innerHTML = `<div class="empty-state"><div class="emoji">🎭</div><p>${lang === 'fr' ? 'Aucun théâtre trouvé' : 'No theaters found'}</p></div>`;
+    return;
+  }
+  view.innerHTML = filtered.map(t => {
+    const isFav = favorites.includes(t.id);
+    const tags = t.types[lang].slice(0, 2).map(tp => `<span class="tag ${tagClass(tp)}">${tp}</span>`).join('');
+    const imgHtml = t.image
+      ? `<img src="${t.image}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<div class=card-no-img>🎭</div>'">`
+      : `<div class="card-no-img">🎭</div>`;
+    return `
+    <div class="theatre-card" onclick="openDetail(${t.id}, true)">
+      <div class="card-thumb">${imgHtml}</div>
+      <div class="card-body">
+        <div>
+          <div class="card-name">${t.name[lang]}</div>
+          <div class="card-subtitle">${t.subtitle[lang]}</div>
+        </div>
+        <div class="card-bottom">
+          <div class="card-tags">${tags}</div>
+          <button class="fav-heart ${isFav ? 'active' : ''}" onclick="toggleFav(event,${t.id})">${isFav ? '★' : '☆'}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER FAVS
+// ═══════════════════════════════════════════════════════════
+function renderFavs() {
+  const favs = THEATRES.filter(t => favorites.includes(t.id));
+  const view = document.getElementById('favs-view');
+  if (!favs.length) {
+    view.innerHTML = `<div class="empty-state"><div class="emoji">★</div><p>${lang === 'fr' ? 'Aucun favori encore.<br>Appuyez sur ☆ pour ajouter un théâtre.' : 'No favorites yet.<br>Tap ☆ to save a theater.'}</p></div>`;
+    return;
+  }
+  view.innerHTML = favs.map(t => {
+    const tags = t.types[lang].slice(0, 2).map(tp => `<span class="tag ${tagClass(tp)}">${tp}</span>`).join('');
+    const imgHtml = t.image
+      ? `<img src="${t.image}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<div class=card-no-img>🎭</div>'">`
+      : `<div class="card-no-img">🎭</div>`;
+    return `
+    <div class="theatre-card" onclick="openDetail(${t.id}, true)">
+      <div class="card-thumb">${imgHtml}</div>
+      <div class="card-body">
+        <div>
+          <div class="card-name">${t.name[lang]}</div>
+          <div class="card-subtitle">${t.subtitle[lang]}</div>
+        </div>
+        <div class="card-bottom">
+          <div class="card-tags">${tags}</div>
+          <button class="fav-heart active" onclick="toggleFav(event,${t.id})">★</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// FAVORITES
+// ═══════════════════════════════════════════════════════════
+function toggleFav(e, id) {
+  e.stopPropagation();
+  const idx = favorites.indexOf(id);
+  if (idx === -1) {
+    favorites.push(id);
+    showToast(lang === 'fr' ? '★ Ajouté aux favoris' : '★ Added to favorites');
+  } else {
+    favorites.splice(idx, 1);
+    showToast(lang === 'fr' ? 'Retiré des favoris' : 'Removed from favorites');
+  }
+  try { localStorage.setItem('theatres-paris-favs', JSON.stringify(favorites)); } catch(e) {}
+  renderList();
+  if (currentTab === 'favs') renderFavs();
+}
+
+function toggleFavDetail() {
+  if (!currentDetail) return;
+  const fakeEvt = { stopPropagation: () => {} };
+  toggleFav(fakeEvt, currentDetail.id);
+  const isFav = favorites.includes(currentDetail.id);
+  const btn = document.getElementById('detail-fav-btn');
+  btn.textContent = isFav ? '★' : '☆';
+  btn.classList.toggle('active', isFav);
+}
+
+// ═══════════════════════════════════════════════════════════
+// DETAIL PANEL
+// ═══════════════════════════════════════════════════════════
+function openDetail(id, animate) {
+  const t = THEATRES.find(x => x.id === id);
+  if (!t) return;
+  currentDetail = t;
+
+  document.getElementById('detail-img').src = t.image;
+  document.getElementById('detail-name').textContent = t.name[lang];
+  document.getElementById('detail-subtitle').textContent = t.subtitle[lang];
+
+  document.getElementById('detail-tags').innerHTML =
+    t.types[lang].map(tp => `<span class="tag ${tagClass(tp)}">${tp}</span>`).join('');
+
+  document.getElementById('detail-stats').innerHTML = `
+    <div class="stat-box"><div class="stat-val">${t.founded}</div><div class="stat-lbl">${lang === 'fr' ? 'Fondé' : 'Founded'}</div></div>
+    <div class="stat-box"><div class="stat-val">${t.capacity.toLocaleString()}</div><div class="stat-lbl">${lang === 'fr' ? 'Places' : 'Seats'}</div></div>
+    <div class="stat-box"><div class="stat-val">${t.arrdt}</div><div class="stat-lbl">${lang === 'fr' ? 'Arrond.' : 'District'}</div></div>`;
+
+  document.getElementById('lbl-desc').textContent = lang === 'fr' ? 'Description' : 'Description';
+  document.getElementById('detail-desc').textContent = t.description[lang];
+
+  document.getElementById('lbl-infos').textContent = lang === 'fr' ? 'Informations pratiques' : 'Practical Information';
+  document.getElementById('detail-infos').innerHTML = `
+    <div class="detail-info-row"><span class="info-icon">📍</span><span class="info-label">${lang === 'fr' ? 'Adresse' : 'Address'}</span><span class="info-val">${t.address}</span></div>
+    <div class="detail-info-row"><span class="info-icon">🕐</span><span class="info-label">${lang === 'fr' ? 'Horaires' : 'Hours'}</span><span class="info-val">${t.hours[lang]}</span></div>
+    <div class="detail-info-row"><span class="info-icon">🎟</span><span class="info-label">${lang === 'fr' ? 'Tarifs' : 'Prices'}</span><span class="info-val">${t.price[lang]}</span></div>
+    ${t.phone ? `<div class="detail-info-row"><span class="info-icon">📞</span><span class="info-label">${lang === 'fr' ? 'Tél.' : 'Phone'}</span><span class="info-val">${t.phone}</span></div>` : ''}
+    ${t.website ? `<div class="detail-info-row"><span class="info-icon">🌐</span><span class="info-label">Site web</span><span class="info-val"><a href="${t.website}" target="_blank">${t.website.replace('https://','')}</a></span></div>` : ''}`;
+
+  document.getElementById('lbl-shows').textContent =
+    lang === 'fr' ? 'Spectacles emblématiques' : 'Emblematic Shows';
+  document.getElementById('detail-shows').innerHTML = t.shows.map(s => `
+    <div class="show-card">
+      ${s.image
+        ? `<div class="show-img-wrap"><img src="${s.image}" alt="${s.title}" onerror="this.parentElement.outerHTML='<div class=show-no-img>🎭</div>'"></div>`
+        : `<div class="show-no-img">🎭</div>`}
+      <div class="show-body">
+        <div class="show-title">${s.title}</div>
+        <div class="show-author">${s.author}</div>
+        <div class="show-genre">${s.genre[lang]}</div>
+      </div>
+    </div>`).join('');
+
+  const isFav = favorites.includes(t.id);
+  const favBtn = document.getElementById('detail-fav-btn');
+  favBtn.textContent = isFav ? '★' : '☆';
+  favBtn.classList.toggle('active', isFav);
+
+  const panel = document.getElementById('detail-panel');
+  panel.style.transition = animate ? 'transform 0.35s cubic-bezier(0.32,0.72,0,1)' : 'none';
+  panel.classList.add('open');
+  panel.querySelector('.detail-scroll').scrollTop = 0;
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  currentDetail = null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAP
+// ═══════════════════════════════════════════════════════════
+function initMap() {
+  if (mapInit) return;
+  mapInit = true;
+  lMap = L.map('map', { zoomControl: true, attributionControl: false })
+    .setView([48.860, 2.340], 13);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(lMap);
+  const icon = L.divIcon({
+    html: `<div style="width:30px;height:30px;background:#c9a84c;border:2px solid #f0e2cc;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 10px rgba(0,0,0,0.6);cursor:pointer">🎭</div>`,
+    className: '', iconAnchor: [15, 15]
+  });
+  THEATRES.forEach(t => {
+    const markerIcon = L.divIcon({
+      html: `<div onclick="window.openDetail(${t.id},true)" style="width:34px;height:34px;background:#c9a84c;border:2px solid #f0e2cc;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 10px rgba(0,0,0,0.6);cursor:pointer;-webkit-tap-highlight-color:transparent" title="${t.name.fr}">🎭</div>`,
+      className: '', iconAnchor: [17, 17]
+    });
+    L.marker([t.coords.lat, t.coords.lng], { icon: markerIcon }).addTo(lMap);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('list-view').style.display  = tab === 'list' ? 'block' : 'none';
+  document.getElementById('map-view').style.display   = tab === 'map'  ? 'block' : 'none';
+  document.getElementById('favs-view').style.display  = tab === 'favs' ? 'block' : 'none';
+  document.getElementById('searchbar').style.display  = tab === 'list' ? 'block' : 'none';
+  document.getElementById('filters').style.display    = tab === 'list' ? 'flex'  : 'none';
+  document.getElementById('count-badge').style.display= tab === 'list' ? 'block' : 'none';
+  if (tab === 'map')  { initMap(); setTimeout(() => lMap && lMap.invalidateSize(), 120); }
+  if (tab === 'favs') renderFavs();
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════
+let _toast;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(_toast); _toast = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ═══════════════════════════════════════════════════════════
+// INFO
+// ═══════════════════════════════════════════════════════════
+function showInfo() {
+  alert(lang === 'fr'
+    ? "🎭 Théâtres Paris\n\nGuide de 18 grands théâtres parisiens.\nOpéra · Ballet · Classique · Boulevard · Contemporain\n\nSources : Wikipédia, sites officiels."
+    : "🎭 Théâtres Paris\n\nGuide to 18 of Paris's great theaters.\nOpera · Ballet · Classical · Boulevard · Contemporary\n\nSources: Wikipedia, official websites.");
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+window.openDetail = openDetail;
+document.addEventListener('DOMContentLoaded', function() {
+  renderList();
+});
+</script>
+</body>
+</html>

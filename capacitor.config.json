@@ -1,0 +1,25 @@
+{
+  "appId": "com.michel.garlandat.theatresparis",
+  "appName": "Théâtres Paris",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile",
+    "backgroundColor": "#0e0507"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "backgroundColor": "#0e0507",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0e0507",
+      "overlaysWebView": true
+    }
+  }
+}
