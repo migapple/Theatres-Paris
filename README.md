@@ -122,10 +122,6 @@ Fait avec [Anthropic Claude](https://www.anthropic.com).
 
 ## 🤝 Autres apps
 
-| App | Bundle ID | Description |
-|-----|-----------|-------------|
-| Musées Paris | `com.michel.garlandat.museesparis` | Guide des musées parisiens |
-| Cimetières Paris | `com.michel.garlandat.cimetieres` | Guide Père-Lachaise & Montparnasse |
-| MaCave | `com.michel.garlandat.macave` | Cave à vin personnelle |
-| Frigo Manager | `com.michel.garlandat.frigomanager` | Gestion du réfrigérateur |
-| MesRestaurants | `com.michel.garlandat.mesrestaurants` | Carnet de restaurants |
+https://migapple.github.io/
+
+
